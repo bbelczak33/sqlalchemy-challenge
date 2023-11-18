@@ -5,6 +5,7 @@ import sqlalchemy
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func
+import datetime as dt
 
 from flask import Flask, jsonify
 
@@ -43,8 +44,8 @@ def welcome():
         f"/api/v1.0/precipitation<br/>"
         f"/api/v1.0/stations<br/>"
         f"/api/v1.0/tobs<br/>"
-        f"/api/v1.0/<start>"
-        f"/api/v1.0/<start>/<end>"
+        f"/api/v1.0/temp/start<br/>"
+        f"/api/v1.0/temp/start/end"
     )
 
 @app.route("/api/v1.0/precipitation")
@@ -52,7 +53,16 @@ def precipitation():
 
     session = Session(engine)
 
+    one_year_before = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+
+    new_data = session.query(measurement.date, measurement.prcp).\
+    filter(measurement.date >= one_year_before).all()
+
     session.close()
+
+    precipitation = {date:prcp for date,prcp in new_data}
+
+    return jsonify(precipitation)
 
 @app.route("/api/v1.0/stations")
 def stations():
@@ -64,20 +74,55 @@ def stations():
 
     session.close()
 
-    return jsonify(station_name)
+    all_stations = list(np.ravel(station_name))
+
+    return jsonify(all_stations)
 
 @app.route("/api/v1.0/tobs")
 def tobs():
 
     session = Session(engine)
 
+    one_year_before = dt.date(2017, 8, 23) - dt.timedelta(days=365)
+
+    q_tobs = session.query(measurement.tobs).\
+    filter(measurement.station == 'USC00519281').\
+    filter(measurement.date >= one_year_before).all()
+
     session.close()
 
-@app.route("/api/v1.0/<start>")
-def start():
+    qt = list(np.ravel(q_tobs))
 
-@app.route("/api/v1.0/<start>/<end>")
-def end():
+    return jsonify(qt)
+
+@app.route("/api/v1.0/temp/<start>")
+def start(start):
+
+    session = Session(engine)
+
+    temp_start = session.query(func.max(measurement.tobs), func.avg(measurement.tobs), func.min(measurement.tobs)).\
+    filter(measurement.date >= start).all()
+
+    session.close()
+
+    ts = list(np.ravel(temp_start))
+
+    return jsonify(ts)
+
+@app.route("/api/v1.0/temp/<start>/<end>")
+def end(start, end):
+
+    session = Session(engine)
+
+    temp_end = session.query(func.max(measurement.tobs), func.avg(measurement.tobs), func.min(measurement.tobs)).\
+    filter(measurement.date >= start).\
+    filter(measurement.date <= end).all()
+
+    session.close()
+
+    te = list(np.ravel(temp_end))
+
+    return jsonify(te)
 
 if __name__ == '__main__':
     app.run(debug=True)
